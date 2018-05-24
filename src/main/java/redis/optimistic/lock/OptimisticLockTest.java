@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 public class OptimisticLockTest {
 
     public static void main(String[] args){
-        int number=100000;
+        int number=1000;
         CyclicBarrier cyclicBarrier=new CyclicBarrier(number/100);
 
         Jedis jedis=null;
@@ -46,7 +46,7 @@ public class OptimisticLockTest {
         /**
          * 线程池
          */
-        ThreadPoolExecutor executor= (ThreadPoolExecutor) Executors.newFixedThreadPool(number/100);
+        //ThreadPoolExecutor executor= (ThreadPoolExecutor) Executors.newFixedThreadPool(number/10);
 
         ThreadFactory threadFactory=new BasicThreadFactory.Builder().namingPattern("optimisticlock-thread-pool-%d").daemon(true).build();
         ExecutorService executorService=new ThreadPoolExecutor(10,100,0,
@@ -54,14 +54,13 @@ public class OptimisticLockTest {
 
         List<OptimisticLockTask> tasks=new ArrayList<OptimisticLockTask>();
 
-
         try {
             jedis=new Jedis("127.0.0.1", 6379);
             for(int i=1;i<=number;i++){
                 tasks.add(new MyTask(cyclicBarrier));
             }
             int i=1;
-            List<Future<Map<String,Boolean>>> list= executor.invokeAll(tasks);
+            List<Future<Map<String,Boolean>>> list= executorService.invokeAll(tasks);
             for(Future<Map<String,Boolean>> f:list){
                 Map<String,Boolean> map=f.get();
                 for(String key:map.keySet()){
