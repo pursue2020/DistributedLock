@@ -1,14 +1,12 @@
 package redis.optimistic.lock;
 
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 
 /**
@@ -30,19 +28,24 @@ public class MyTask extends OptimisticLockTask{
 
     private CyclicBarrier cyclicBarrier;
 
+    private Jedis jedis;
+
     public MyTask(CyclicBarrier cyclicBarrier) {
         this.cyclicBarrier=cyclicBarrier;
+    }
+
+    public MyTask(CyclicBarrier cyclicBarrier, Jedis jedis) {
+        this.cyclicBarrier = cyclicBarrier;
+        this.jedis = jedis;
     }
 
     public Map<String,Boolean> call() throws Exception {
         //默认抢购失败
         Boolean b=false;
         Map<String,Boolean> map=new HashMap<String, Boolean>();
-        JedisPool jedisPool=null;
         Jedis jedis=null;
-
-        jedisPool=MyJedisPool.getInstance();
-        jedis=jedisPool.getResource();
+        //jedis=MyJedisPool.getInstance().getResource();
+        jedis=new Jedis("127.0.0.1", 6379);
 
         String userID= null;
         try {
@@ -54,19 +57,20 @@ public class MyTask extends OptimisticLockTask{
             int number=Integer.parseInt(num);
             userID = UUID.randomUUID().toString();
             if(number<Constant.NUM){
-                System.out.println("当前线程"+Thread.currentThread().getName()+"开始抢购.....");
+                System.out.println("当前已被抢购数量："+number+"线程"+Thread.currentThread().getName()+"开始抢购.....");
                 Transaction transaction=jedis.multi();
-                jedis.incr(Constant.WATCHKEY);
+                transaction.incr(Constant.WATCHKEY);
+                //transaction.incrBy(Constant.WATCHKEY,1);
                 //提交事务，如果执行事务时发现watchkeys值被修改返回null
                 List<Object> list= transaction.exec();
-                if(list!=null){
-                    System.out.println("当前线程"+Thread.currentThread().getName()+"抢购成功");
-                    b=true;
-                    jedis.sadd("successInfo",userID);
-                }else{
+                if(list==null || list.size()==0){
                     System.out.println("当前线程"+Thread.currentThread().getName()+"抢购失败");
                     jedis.sadd("failInfo",userID);
                     jedis.sadd("concurrencyFailInfo",userID);
+                }else{
+                    System.out.println("当前线程"+Thread.currentThread().getName()+"抢购成功");
+                    b=true;
+                    jedis.sadd("successInfo",userID);
                 }
             }else{
                 System.out.println("用户："+userID+",抢购商品失败，请下次再来试试。");
@@ -77,10 +81,10 @@ public class MyTask extends OptimisticLockTask{
             e.printStackTrace();
             System.err.println("程序处理异常了");
         } finally{
+            jedis.unwatch();
             if(jedis!=null) {
                 jedis.close();
             }
-           jedisPool.close();
         }
         map.put(userID,b);
         return map;

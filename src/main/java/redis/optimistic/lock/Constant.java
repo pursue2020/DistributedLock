@@ -15,6 +15,6 @@ public interface Constant {
     /**
      * 抢购产品的数量
      */
-    Integer NUM=10;
+    Integer NUM=3;
 
 }
