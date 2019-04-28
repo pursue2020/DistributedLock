@@ -26,7 +26,6 @@
       <artifactId>zkclient</artifactId>
       <version>0.10</version>
     </dependency>
-
     <!-- zookeeper包 -->
     <dependency>
       <groupId>org.apache.zookeeper</groupId>
